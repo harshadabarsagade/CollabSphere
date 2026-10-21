@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import {
   getProjectFiles,
@@ -8,11 +8,31 @@ import {
   createProjectNote,
   updateProjectNote,
   deleteProjectNote,
+  loginUser,
+  registerUser,
+  getMyProjects,
 } from "./api";
 
 function App() {
+  const [token, setToken] = useState(
+    () => localStorage.getItem("collabsphere_token") || ""
+  );
+
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("collabsphere_user") || "null");
+    } catch {
+      return null;
+    }
+  });
+
+  const [projects, setProjects] = useState([]);
   const [projectId, setProjectId] = useState("");
-  const [token, setToken] = useState("");
+  const [isRegister, setIsRegister] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
   const [selectedFile, setSelectedFile] = useState(null);
   const [files, setFiles] = useState([]);
   const [notes, setNotes] = useState([]);
@@ -22,9 +42,91 @@ function App() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (token && user) {
+      loadProjects(token);
+    }
+  }, []);
+
+  async function loadProjects(authToken) {
+    try {
+      setLoading(true);
+
+      const data = await getMyProjects(authToken);
+      setProjects(data);
+
+      if (data.length > 0) {
+        setProjectId((currentId) =>
+          data.some((project) => project._id === currentId)
+            ? currentId
+            : data[0]._id
+        );
+        setMessage(`${data.length} project(s) loaded.`);
+      } else {
+        setProjectId("");
+        setFiles([]);
+        setNotes([]);
+        setMessage("No projects found. Create a project first.");
+      }
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAuth(event) {
+    event.preventDefault();
+
+    try {
+      setLoading(true);
+      setMessage("");
+
+      if (isRegister) {
+        await registerUser(name.trim(), email.trim(), password);
+        setIsRegister(false);
+        setName("");
+        setPassword("");
+        setMessage("Registration successful! Please log in.");
+      } else {
+        const data = await loginUser(email.trim(), password);
+
+        localStorage.setItem("collabsphere_token", data.token);
+        localStorage.setItem("collabsphere_user", JSON.stringify(data.user));
+
+        setToken(data.token);
+        setUser(data.user);
+        setPassword("");
+
+        await loadProjects(data.token);
+      }
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("collabsphere_token");
+    localStorage.removeItem("collabsphere_user");
+
+    setToken("");
+    setUser(null);
+    setProjects([]);
+    setProjectId("");
+    setFiles([]);
+    setNotes([]);
+    setSelectedFile(null);
+    setTitle("");
+    setContent("");
+    setEditingNoteId(null);
+    setMessage("You have logged out.");
+  }
+
   async function loadFiles() {
-    if (!projectId.trim() || !token.trim()) {
-      setMessage("Enter Project ID and login token.");
+    if (!projectId) {
+      setMessage("Please select a project first.");
       return;
     }
 
@@ -41,8 +143,8 @@ function App() {
   }
 
   async function loadNotes() {
-    if (!projectId.trim() || !token.trim()) {
-      setMessage("Enter Project ID and login token first.");
+    if (!projectId) {
+      setMessage("Please select a project first.");
       return;
     }
 
@@ -58,9 +160,37 @@ function App() {
     }
   }
 
+  async function handleProjectChange(value) {
+    setProjectId(value);
+    setFiles([]);
+    setNotes([]);
+    setEditingNoteId(null);
+    setTitle("");
+    setContent("");
+
+    if (!value) return;
+
+    try {
+      setLoading(true);
+
+      const [fileData, noteData] = await Promise.all([
+        getProjectFiles(value, token),
+        getProjectNotes(value, token),
+      ]);
+
+      setFiles(fileData);
+      setNotes(noteData);
+      setMessage("Project files and notes loaded.");
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleUpload() {
-    if (!projectId.trim() || !token.trim()) {
-      setMessage("Enter Project ID and login token first.");
+    if (!projectId) {
+      setMessage("Please select a project first.");
       return;
     }
 
@@ -71,11 +201,13 @@ function App() {
 
     try {
       setLoading(true);
+
       await uploadProjectFile(projectId, selectedFile, token);
+
       setSelectedFile(null);
 
-      const fileInput = document.getElementById("fileInput");
-      if (fileInput) fileInput.value = "";
+      const input = document.getElementById("fileInput");
+      if (input) input.value = "";
 
       const data = await getProjectFiles(projectId, token);
       setFiles(data);
@@ -97,8 +229,8 @@ function App() {
   }
 
   async function handleSaveNote() {
-    if (!projectId.trim() || !token.trim()) {
-      setMessage("Enter Project ID and login token first.");
+    if (!projectId) {
+      setMessage("Please select a project first.");
       return;
     }
 
@@ -107,25 +239,15 @@ function App() {
       return;
     }
 
+    const wasEditing = Boolean(editingNoteId);
+
     try {
       setLoading(true);
 
-      if (editingNoteId) {
-        await updateProjectNote(
-          editingNoteId,
-          title,
-          content,
-          token
-        );
-        setMessage("Note updated successfully!");
+      if (wasEditing) {
+        await updateProjectNote(editingNoteId, title.trim(), content, token);
       } else {
-        await createProjectNote(
-          projectId,
-          title,
-          content,
-          token
-        );
-        setMessage("Note created successfully!");
+        await createProjectNote(projectId, title.trim(), content, token);
       }
 
       setTitle("");
@@ -134,6 +256,7 @@ function App() {
 
       const data = await getProjectNotes(projectId, token);
       setNotes(data);
+      setMessage(wasEditing ? "Note updated successfully!" : "Note created successfully!");
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -145,7 +268,7 @@ function App() {
     setEditingNoteId(note._id);
     setTitle(note.title);
     setContent(note.content || "");
-    setMessage("Edit the note and click Save Note.");
+    setMessage("Edit your note and save the changes.");
   }
 
   async function handleDeleteNote(noteId) {
@@ -155,6 +278,7 @@ function App() {
 
     try {
       setLoading(true);
+
       await deleteProjectNote(noteId, token);
 
       const data = await getProjectNotes(projectId, token);
@@ -174,40 +298,154 @@ function App() {
     setMessage("");
   }
 
+  if (!token || !user) {
+    return (
+      <div className="app">
+        <nav className="navbar">
+          <div className="brand">
+           
+            <div className="brand-text">
+              <h2>
+                CollabSphere<span className="brand-dot">.</span>
+              </h2>
+              <p>BUILD TOGETHER. GROW TOGETHER.</p>
+            </div>
+          </div>
+          <div className="navbar-center">
+            Developer Collaboration Platform
+          </div>
+        </nav>
+
+        <main className="container">
+          <section className="upload-panel">
+            <h1>{isRegister ? "Create Your Account" : "Welcome Back"}</h1>
+            <p>
+              {isRegister
+                ? "Register to start collaborating."
+                : "Log in to access your project workspace."}
+            </p>
+
+            <form onSubmit={handleAuth}>
+              {isRegister && (
+                <input
+                  type="text"
+                  placeholder="Your name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  required
+                />
+              )}
+
+              <input
+                type="email"
+                placeholder="Email address"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+
+              <button type="submit" disabled={loading}>
+                {loading
+                  ? "Please wait..."
+                  : isRegister
+                    ? "Create Account"
+                    : "Login"}
+              </button>
+            </form>
+
+            <p>
+              {isRegister
+                ? "Already have an account?"
+                : "Don't have an account?"}{" "}
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={loading}
+                onClick={() => {
+                  setIsRegister(!isRegister);
+                  setMessage("");
+                }}
+              >
+                {isRegister ? "Login" : "Register"}
+              </button>
+            </p>
+
+            {message && <p className="message">{message}</p>}
+          </section>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <nav className="navbar">
-        <h2>CollabSphere</h2>
-        <span>Developer Collaboration Platform</span>
+        <div className="brand">
+          <div className="brand-icon">C</div>
+          <div className="brand-text">
+            <h2>
+              CollabSphere<span className="brand-dot">.</span>
+            </h2>
+            <p>BUILD TOGETHER. GROW TOGETHER.</p>
+          </div>
+        </div>
+
+        <div className="navbar-center">
+          <span className="status-dot"></span>
+          Developer Collaboration Platform
+        </div>
+
+        <button className="logout-btn" onClick={handleLogout}>
+          ↗ Logout
+        </button>
       </nav>
 
       <main className="container">
         <h1>Project Workspace</h1>
-        <p>Manage your project files and notes in one place.</p>
+        <p>
+          Welcome, {user.name}! Manage your project files and notes in one place.
+        </p>
 
         <section className="upload-panel">
-          <h2>Connect to your project</h2>
+          <h2>Select Your Project</h2>
 
-          <input
-            type="text"
-            placeholder="Enter Project ID"
+          <select
             value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
-          />
-
-          <input
-            type="password"
-            placeholder="Enter login token"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-          />
+            onChange={(event) => handleProjectChange(event.target.value)}
+            disabled={loading || projects.length === 0}
+          >
+            {projects.length === 0 ? (
+              <option value="">No projects available</option>
+            ) : (
+              projects.map((project) => (
+                <option key={project._id} value={project._id}>
+                  {project.title}
+                </option>
+              ))
+            )}
+          </select>
 
           <div className="action-row">
-            <button disabled={loading} onClick={loadFiles}>
+            <button disabled={loading || !projectId} onClick={loadFiles}>
               Load Files
             </button>
-            <button disabled={loading} onClick={loadNotes}>
+            <button disabled={loading || !projectId} onClick={loadNotes}>
               Load Notes
+            </button>
+            <button
+              className="secondary-button"
+              disabled={loading}
+              onClick={() => loadProjects(token)}
+            >
+              Refresh Projects
             </button>
           </div>
         </section>
@@ -215,19 +453,22 @@ function App() {
         {message && <p className="message">{message}</p>}
 
         <section className="upload-panel">
-          <h2>Upload a file</h2>
+          <h2>Upload a File</h2>
 
           <input
             id="fileInput"
             type="file"
-            onChange={(e) =>
-              setSelectedFile(e.target.files[0] || null)
+            onChange={(event) =>
+              setSelectedFile(event.target.files[0] || null)
             }
           />
 
           {selectedFile && <p>Selected: {selectedFile.name}</p>}
 
-          <button disabled={loading} onClick={handleUpload}>
+          <button
+            disabled={loading || !projectId}
+            onClick={handleUpload}
+          >
             {loading ? "Please wait..." : "Upload File"}
           </button>
         </section>
@@ -236,7 +477,7 @@ function App() {
           <h2>Your Files</h2>
 
           {files.length === 0 ? (
-            <p>No files loaded. Click Load Files.</p>
+            <p>No files loaded for this project.</p>
           ) : (
             files.map((file) => (
               <div className="file-item" key={file._id}>
@@ -268,18 +509,21 @@ function App() {
             type="text"
             placeholder="Note title"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(event) => setTitle(event.target.value)}
           />
 
           <textarea
             placeholder="Write your project notes here..."
             rows="5"
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={(event) => setContent(event.target.value)}
           />
 
           <div className="action-row">
-            <button disabled={loading} onClick={handleSaveNote}>
+            <button
+              disabled={loading || !projectId}
+              onClick={handleSaveNote}
+            >
               {loading
                 ? "Please wait..."
                 : editingNoteId
@@ -289,8 +533,8 @@ function App() {
 
             {editingNoteId && (
               <button
-                disabled={loading}
                 className="secondary-button"
+                disabled={loading}
                 onClick={cancelEdit}
               >
                 Cancel
@@ -303,7 +547,7 @@ function App() {
           <h2>Your Notes</h2>
 
           {notes.length === 0 ? (
-            <p>No notes loaded. Click Load Notes.</p>
+            <p>No notes loaded for this project.</p>
           ) : (
             notes.map((note) => (
               <div className="file-item note-item" key={note._id}>
@@ -321,8 +565,8 @@ function App() {
                   </button>
 
                   <button
-                    disabled={loading}
                     className="secondary-button"
+                    disabled={loading}
                     onClick={() => handleDeleteNote(note._id)}
                   >
                     Delete
