@@ -1,0 +1,556 @@
+/* ===== Global Styles ===== */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  font-family: 'DM Sans', sans-serif;
+  color: #252746;
+  background: #f8f8fc;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --primary: #6558d9;
+  --primary-dark: #5143c3;
+  --text: #252746;
+  --muted: #8588a5;
+  --border: #e9e9f4;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at 8% 5%, #eeecff 0, transparent 34%),
+    radial-gradient(ellipse at 95% 45%, #f0edff 0, transparent 28%),
+    #f8f8fc;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #d6d1ff;
+  outline-offset: 3px;
+}
+
+.app {
+  min-height: 100vh;
+}
+
+/* ===== Navbar ===== */
+.navbar {
+  min-height: 82px;
+  padding: 20px 7%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  color: #fff;
+  background: linear-gradient(115deg, #24244d, #5146a9 75%, #685bd4);
+  box-shadow: 0 8px 28px rgba(51, 43, 112, 0.15);
+}
+
+.navbar h2 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: -0.9px;
+}
+
+.navbar span {
+  color: #e0ddff;
+  font-size: 13px;
+  letter-spacing: 0.2px;
+}
+
+/* ===== Main Workspace ===== */
+.container {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: 56px 32px 80px;
+}
+
+.container h1 {
+  margin-bottom: 12px;
+  color: var(--text);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: clamp(30px, 4vw, 43px);
+  font-weight: 800;
+  letter-spacing: -1.8px;
+  line-height: 1.2;
+}
+
+.container > p {
+  max-width: 680px;
+  margin-bottom: 35px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+/* ===== Upload and Notes Panels ===== */
+.upload-panel {
+  width: 100%;
+  max-width: 850px;
+  margin-top: 26px;
+  padding: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+  background: #fff;
+  border: 1px solid #e1e0f3;
+  border-radius: 20px;
+  box-shadow: 0 12px 36px rgba(44, 41, 91, 0.055);
+}
+
+.upload-panel h2 {
+  margin-bottom: 4px;
+  color: var(--text);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.upload-panel input,
+.upload-panel textarea {
+  width: 100%;
+  padding: 15px 16px;
+  color: var(--text);
+  background: #fbfbfe;
+  border: 1px solid #e3e4f1;
+  border-radius: 11px;
+  font-size: 14px;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.upload-panel input::placeholder,
+.upload-panel textarea::placeholder {
+  color: #999bb3;
+}
+
+.upload-panel input:hover,
+.upload-panel textarea:hover {
+  border-color: #c9c4f3;
+}
+
+.upload-panel input:focus,
+.upload-panel textarea:focus {
+  outline: none;
+  border-color: #9288ed;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(101, 88, 217, 0.09);
+}
+
+.upload-panel input[type='file'] {
+  padding: 11px;
+  cursor: pointer;
+}
+
+.upload-panel textarea {
+  min-height: 145px;
+  line-height: 1.8;
+  resize: vertical;
+}
+
+/* ===== Buttons ===== */
+.upload-panel button,
+.file-item button {
+  min-height: 43px;
+  padding: 12px 20px;
+  color: #fff;
+  background: var(--primary);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 5px 12px rgba(101, 88, 217, 0.15);
+}
+
+.upload-panel button:hover,
+.file-item button:hover {
+  background: var(--primary-dark);
+  box-shadow: 0 7px 16px rgba(101, 88, 217, 0.22);
+  transform: translateY(-1px);
+}
+
+.upload-panel button:disabled,
+.file-item button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.upload-panel hr {
+  width: 100%;
+  margin: 8px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.upload-panel p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+/* ===== Status Message ===== */
+.message {
+  margin: 22px 0;
+  padding: 14px 17px;
+  color: #5043a6;
+  background: #f0eeff;
+  border: 1px solid #e0dcff;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+/* ===== Files and Notes Lists ===== */
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 38px;
+}
+
+.file-list > h2 {
+  margin-bottom: 4px;
+  color: var(--text);
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 23px;
+  font-weight: 750;
+  letter-spacing: -0.7px;
+}
+
+.file-list > p {
+  padding: 22px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px dashed #deddf0;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+/* ===== Individual Cards ===== */
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 22px;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 5px 20px rgba(44, 41, 91, 0.035);
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.file-item:hover {
+  border-color: #d3cff7;
+  box-shadow: 0 10px 28px rgba(44, 41, 91, 0.075);
+  transform: translateY(-2px);
+}
+
+.file-item h3 {
+  margin-bottom: 9px;
+  color: #292949;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.file-item p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.file-item button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ===== Edit and Delete Actions ===== */
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.file-item .action-row button {
+  width: auto;
+  min-width: 82px;
+}
+
+.file-item .secondary-button,
+.upload-panel .secondary-button {
+  color: #555174;
+  background: #f0effa;
+  border-color: #e7e4fa;
+  box-shadow: none;
+}
+
+.file-item .secondary-button:hover,
+.upload-panel .secondary-button:hover {
+  color: #42368f;
+  background: #e5e2fb;
+  border-color: #d7d1f7;
+  box-shadow: none;
+}
+
+/* ===== Notes Editor ===== */
+.notes-panel {
+  margin-top: 34px;
+}
+
+.notes-panel textarea {
+  min-height: 150px;
+}
+
+/* ===== Tablet ===== */
+@media (max-width: 800px) {
+  .navbar {
+    padding: 20px 5%;
+  }
+
+  .container {
+    padding: 42px 24px 60px;
+  }
+
+  .upload-panel {
+    max-width: 100%;
+    padding: 25px;
+  }
+
+  .file-item {
+    padding: 20px;
+  }
+}
+
+/* ===== Mobile ===== */
+@media (max-width: 560px) {
+  .navbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+    padding: 19px 20px;
+  }
+
+  .navbar h2 {
+    font-size: 23px;
+  }
+
+  .navbar span {
+    font-size: 12px;
+  }
+
+  .container {
+    padding: 35px 17px 50px;
+  }
+
+  .container h1 {
+    font-size: 31px;
+    letter-spacing: -1.2px;
+  }
+
+  .container > p {
+    font-size: 14px;
+  }
+
+  .upload-panel {
+    margin-top: 21px;
+    padding: 20px;
+    gap: 15px;
+    border-radius: 16px;
+  }
+
+  .upload-panel h2 {
+    font-size: 18px;
+  }
+
+  .upload-panel button {
+    width: 100%;
+  }
+
+  .upload-panel .action-row button {
+    width: auto;
+    flex: 1;
+  }
+
+  .file-list {
+    margin-top: 30px;
+  }
+
+  .file-list > h2 {
+    font-size: 21px;
+  }
+
+  .file-item {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px;
+    border-radius: 14px;
+  }
+
+  .file-item > button {
+    width: 100%;
+  }
+
+  .file-item .action-row button {
+    flex: 1;
+  }
+
+  .action-row {
+    gap: 8px;
+  }
+}
+
+/* ===== Reduced Motion Accessibility ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+
+
+/* ===== CollabSphere Layout Improvements ===== */
+
+.app {
+  width: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Full-width navbar */
+.navbar {
+  width: 100%;
+  min-height: 82px;
+  padding: 22px max(5%, calc((100% - 1120px) / 2));
+  margin: 0;
+  border-radius: 0;
+}
+
+/* Center the entire workspace */
+.container {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 55px 32px 80px;
+}
+
+/* Center page heading */
+.container > h1,
+.container > p {
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Align all panels to the same center line */
+.container > .upload-panel,
+.container > .file-list {
+  width: 100%;
+  max-width: 850px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Give panels consistent spacing */
+.container > .upload-panel {
+  margin-top: 25px;
+  padding: 30px;
+  border-radius: 20px;
+}
+
+.container > .file-list {
+  margin-top: 35px;
+}
+
+/* Center section headings */
+.upload-panel > h2,
+.file-list > h2 {
+  text-align: center;
+}
+
+/* Consistent fields */
+.upload-panel input,
+.upload-panel textarea {
+  width: 100%;
+  max-width: 100%;
+  border-radius: 12px;
+}
+
+/* More professional buttons */
+.upload-panel button,
+.file-item button {
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+/* Keep cards within the workspace */
+.file-item {
+  width: 100%;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.file-item > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Responsive design */
+@media (max-width: 700px) {
+  .navbar {
+    padding: 18px 22px;
+  }
+
+  .container {
+    padding: 35px 18px 50px;
+  }
+
+  .container > .upload-panel {
+    padding: 22px 18px;
+  }
+
+  .file-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .file-item > button {
+    width: 100%;
+  }
+}

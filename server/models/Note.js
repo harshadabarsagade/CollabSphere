@@ -1,0 +1,33 @@
+
+import mongoose from "mongoose";
+
+const noteSchema = new mongoose.Schema(
+    {
+        title: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        content: {
+            type: String,
+            default: ""
+        },
+        project: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Project",
+            required: true
+        },
+        owner: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true
+        }
+    },
+    {
+        timestamps: true
+    }
+);
+
+const Note = mongoose.model("Note", noteSchema);
+
+export default Note;
