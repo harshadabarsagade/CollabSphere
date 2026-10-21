@@ -200,3 +200,23 @@ export async function getMyProjects(token) {
 
   return data.projects || [];
 }
+
+// Create a new project
+export async function createProject(title, description, token) {
+  const response = await fetch(`${API_URL}/api/projects`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ title, description }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Could not create project");
+  }
+
+  return data.project;
+}

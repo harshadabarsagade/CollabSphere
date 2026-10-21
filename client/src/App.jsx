@@ -1,5 +1,7 @@
+
 import { useEffect, useState } from "react";
 import "./App.css";
+
 import {
   getProjectFiles,
   uploadProjectFile,
@@ -11,6 +13,7 @@ import {
   loginUser,
   registerUser,
   getMyProjects,
+  createProject,
 } from "./api";
 
 function App() {
@@ -20,7 +23,9 @@ function App() {
 
   const [user, setUser] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem("collabsphere_user") || "null");
+      return JSON.parse(
+        localStorage.getItem("collabsphere_user") || "null"
+      );
     } catch {
       return null;
     }
@@ -28,6 +33,10 @@ function App() {
 
   const [projects, setProjects] = useState([]);
   const [projectId, setProjectId] = useState("");
+
+  const [newProjectTitle, setNewProjectTitle] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
+
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -36,9 +45,11 @@ function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [files, setFiles] = useState([]);
   const [notes, setNotes] = useState([]);
+
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [editingNoteId, setEditingNoteId] = useState(null);
+
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -61,12 +72,13 @@ function App() {
             ? currentId
             : data[0]._id
         );
+
         setMessage(`${data.length} project(s) loaded.`);
       } else {
         setProjectId("");
         setFiles([]);
         setNotes([]);
-        setMessage("No projects found. Create a project first.");
+        setMessage("No projects found. Create your first project below.");
       }
     } catch (error) {
       setMessage(error.message);
@@ -84,15 +96,20 @@ function App() {
 
       if (isRegister) {
         await registerUser(name.trim(), email.trim(), password);
+
         setIsRegister(false);
         setName("");
         setPassword("");
+
         setMessage("Registration successful! Please log in.");
       } else {
         const data = await loginUser(email.trim(), password);
 
         localStorage.setItem("collabsphere_token", data.token);
-        localStorage.setItem("collabsphere_user", JSON.stringify(data.user));
+        localStorage.setItem(
+          "collabsphere_user",
+          JSON.stringify(data.user)
+        );
 
         setToken(data.token);
         setUser(data.user);
@@ -100,6 +117,44 @@ function App() {
 
         await loadProjects(data.token);
       }
+    } catch (error) {
+      setMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCreateProject(event) {
+    event.preventDefault();
+
+    if (!newProjectTitle.trim()) {
+      setMessage("Please enter a project title.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+
+      const project = await createProject(
+        newProjectTitle.trim(),
+        newProjectDescription.trim(),
+        token
+      );
+
+      setProjects((previousProjects) => [
+        ...previousProjects,
+        project,
+      ]);
+
+      setProjectId(project._id);
+      setFiles([]);
+      setNotes([]);
+      setSelectedFile(null);
+      setNewProjectTitle("");
+      setNewProjectDescription("");
+
+      setMessage("Project created successfully!");
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -121,6 +176,8 @@ function App() {
     setTitle("");
     setContent("");
     setEditingNoteId(null);
+    setNewProjectTitle("");
+    setNewProjectDescription("");
     setMessage("You have logged out.");
   }
 
@@ -132,6 +189,7 @@ function App() {
 
     try {
       setLoading(true);
+
       const data = await getProjectFiles(projectId, token);
       setFiles(data);
       setMessage(`${data.length} file(s) found.`);
@@ -150,6 +208,7 @@ function App() {
 
     try {
       setLoading(true);
+
       const data = await getProjectNotes(projectId, token);
       setNotes(data);
       setMessage(`${data.length} note(s) found.`);
@@ -210,6 +269,7 @@ function App() {
       if (input) input.value = "";
 
       const data = await getProjectFiles(projectId, token);
+
       setFiles(data);
       setMessage("File uploaded successfully!");
     } catch (error) {
@@ -245,9 +305,19 @@ function App() {
       setLoading(true);
 
       if (wasEditing) {
-        await updateProjectNote(editingNoteId, title.trim(), content, token);
+        await updateProjectNote(
+          editingNoteId,
+          title.trim(),
+          content,
+          token
+        );
       } else {
-        await createProjectNote(projectId, title.trim(), content, token);
+        await createProjectNote(
+          projectId,
+          title.trim(),
+          content,
+          token
+        );
       }
 
       setTitle("");
@@ -256,7 +326,12 @@ function App() {
 
       const data = await getProjectNotes(projectId, token);
       setNotes(data);
-      setMessage(wasEditing ? "Note updated successfully!" : "Note created successfully!");
+
+      setMessage(
+        wasEditing
+          ? "Note updated successfully!"
+          : "Note created successfully!"
+      );
     } catch (error) {
       setMessage(error.message);
     } finally {
@@ -303,7 +378,6 @@ function App() {
       <div className="app">
         <nav className="navbar">
           <div className="brand">
-           
             <div className="brand-text">
               <h2>
                 CollabSphere<span className="brand-dot">.</span>
@@ -311,6 +385,7 @@ function App() {
               <p>BUILD TOGETHER. GROW TOGETHER.</p>
             </div>
           </div>
+
           <div className="navbar-center">
             Developer Collaboration Platform
           </div>
@@ -319,6 +394,7 @@ function App() {
         <main className="container">
           <section className="upload-panel">
             <h1>{isRegister ? "Create Your Account" : "Welcome Back"}</h1>
+
             <p>
               {isRegister
                 ? "Register to start collaborating."
@@ -390,6 +466,7 @@ function App() {
       <nav className="navbar">
         <div className="brand">
           <div className="brand-icon">C</div>
+
           <div className="brand-text">
             <h2>
               CollabSphere<span className="brand-dot">.</span>
@@ -410,16 +487,49 @@ function App() {
 
       <main className="container">
         <h1>Project Workspace</h1>
+
         <p>
-          Welcome, {user.name}! Manage your project files and notes in one place.
+          Welcome, {user.name}! Manage your project files and notes in one
+          place.
         </p>
+
+        <section className="upload-panel">
+          <h2>Create a New Project</h2>
+
+          <form onSubmit={handleCreateProject}>
+            <input
+              type="text"
+              placeholder="Project title"
+              value={newProjectTitle}
+              onChange={(event) =>
+                setNewProjectTitle(event.target.value)
+              }
+              required
+            />
+
+            <textarea
+              placeholder="Project description (optional)"
+              rows="3"
+              value={newProjectDescription}
+              onChange={(event) =>
+                setNewProjectDescription(event.target.value)
+              }
+            />
+
+            <button type="submit" disabled={loading}>
+              {loading ? "Please wait..." : "Create Project"}
+            </button>
+          </form>
+        </section>
 
         <section className="upload-panel">
           <h2>Select Your Project</h2>
 
           <select
             value={projectId}
-            onChange={(event) => handleProjectChange(event.target.value)}
+            onChange={(event) =>
+              handleProjectChange(event.target.value)
+            }
             disabled={loading || projects.length === 0}
           >
             {projects.length === 0 ? (
@@ -434,12 +544,20 @@ function App() {
           </select>
 
           <div className="action-row">
-            <button disabled={loading || !projectId} onClick={loadFiles}>
+            <button
+              disabled={loading || !projectId}
+              onClick={loadFiles}
+            >
               Load Files
             </button>
-            <button disabled={loading || !projectId} onClick={loadNotes}>
+
+            <button
+              disabled={loading || !projectId}
+              onClick={loadNotes}
+            >
               Load Notes
             </button>
+
             <button
               className="secondary-button"
               disabled={loading}
