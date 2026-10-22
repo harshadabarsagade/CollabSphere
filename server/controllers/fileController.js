@@ -4,7 +4,7 @@ import Project from "../models/Project.js";
 import path from "path";
 import fs from "fs";
 
-// Upload file
+
 export const uploadFile = async (req, res) => {
     try {
         const { projectId } = req.body;
@@ -128,6 +128,52 @@ export const downloadFile = async (req, res) => {
 
         return res.status(500).json({
             message: "Failed to download file"
+        });
+    }
+};
+
+
+ 
+// Delete file
+export const deleteFile = async (req, res) => {
+    try {
+        const { fileId } = req.params;
+
+        const file = await File.findOne({
+            _id: fileId,
+            owner: req.user.id
+        });
+
+        if (!file) {
+            return res.status(404).json({
+                message: "File not found"
+            });
+        }
+
+        const filePath = path.resolve(file.filePath);
+        const uploadDir = path.resolve("uploads");
+
+        if (!filePath.startsWith(uploadDir + path.sep)) {
+            return res.status(400).json({
+                message: "Invalid file path"
+            });
+        }
+
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+
+        await File.findByIdAndDelete(fileId);
+
+        return res.status(200).json({
+            message: "File deleted successfully"
+        });
+
+    } catch (error) {
+        console.error("Delete file error:", error);
+
+        return res.status(500).json({
+            message: "Failed to delete file"
         });
     }
 };

@@ -220,3 +220,32 @@ export async function createProject(title, description, token) {
 
   return data.project;
 }
+
+export async function generateAIResponse(action, content, token) {
+  const response = await fetch(`${API_URL}/api/gemini`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ action, content }),
+  });
+
+  const text = await response.text();
+
+  let data;
+
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(
+      `Backend returned HTML instead of JSON. Status: ${response.status}. Check the /api/gemini route and API URL.`
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(data.message || "AI request failed");
+  }
+
+  return data.response;
+}

@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import "./App.css";
 
@@ -14,6 +13,7 @@ import {
   registerUser,
   getMyProjects,
   createProject,
+  generateAIResponse,
 } from "./api";
 
 function App() {
@@ -52,6 +52,10 @@ function App() {
 
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [aiAction, setAiAction] = useState("chat");
+  const [aiContent, setAiContent] = useState("");
+  const [aiResponse, setAiResponse] = useState("");
 
   useEffect(() => {
     if (token && user) {
@@ -373,6 +377,34 @@ function App() {
     setMessage("");
   }
 
+  async function handleAIRequest(event) {
+    event.preventDefault();
+
+    if (!aiContent.trim()) {
+      setMessage("Please enter a question or content for AI.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+      setAiResponse("");
+
+      const result = await generateAIResponse(
+        aiAction,
+        aiContent.trim(),
+        token
+      );
+
+      setAiResponse(result);
+      setMessage("AI response generated successfully!");
+    } catch (error) {
+      setMessage(error.message || "AI request failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (!token || !user) {
     return (
       <div className="app">
@@ -460,6 +492,7 @@ function App() {
       </div>
     );
   }
+
 
   return (
     <div className="app">
@@ -571,6 +604,53 @@ function App() {
         {message && <p className="message">{message}</p>}
 
         <section className="upload-panel">
+          <h2>CollabSphere AI Assistant</h2>
+          <p>
+            Ask a question, summarize notes, or get help understanding code.
+          </p>
+
+          <form onSubmit={handleAIRequest}>
+            <label htmlFor="aiAction">Choose an AI action</label>
+
+            <select
+              id="aiAction"
+              value={aiAction}
+              onChange={(event) => setAiAction(event.target.value)}
+              disabled={loading}
+            >
+              <option value="chat">Chat</option>
+              <option value="summarize">Summarize</option>
+              <option value="explain">Explain</option>
+            </select>
+
+            <textarea
+              placeholder="Enter your question, notes, or code here..."
+              rows="5"
+              value={aiContent}
+              onChange={(event) => setAiContent(event.target.value)}
+              disabled={loading}
+              required
+            />
+
+            <button
+              type="submit"
+              disabled={loading || !aiContent.trim()}
+            >
+              {loading ? "AI is thinking..." : "Generate AI Response"}
+            </button>
+          </form>
+
+          {aiResponse && (
+            <div className="file-item" style={{ marginTop: "16px" }}>
+              <div>
+                <h3>AI Response</h3>
+                <p style={{ whiteSpace: "pre-wrap" }}>{aiResponse}</p>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="upload-panel">
           <h2>Upload a File</h2>
 
           <input
@@ -601,6 +681,7 @@ function App() {
               <div className="file-item" key={file._id}>
                 <div>
                   <h3>📄 {file.fileName}</h3>
+
                   <p>
                     Uploaded:{" "}
                     {file.createdAt
