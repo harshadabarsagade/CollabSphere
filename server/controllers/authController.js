@@ -99,10 +99,13 @@ export const loginUser = async (req, res) => {
     }
 
     catch (error) {
-        return res.status(500).json({
-            message: "Login failed"
-        });
-    }
+    console.error("Login error:", error);
+
+    return res.status(500).json({
+        message: "Login failed",
+        error: error.message
+    });
+}
 };
 
 
