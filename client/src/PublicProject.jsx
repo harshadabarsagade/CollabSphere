@@ -39,14 +39,12 @@ function PublicProject() {
                     );
                 }
 
-                const sharedProject = data.project;
-
-                if (!sharedProject || !sharedProject.title) {
+                if (!data.project?.title) {
                     throw new Error("Project details were not found.");
                 }
 
                 if (isMounted) {
-                    setProject(sharedProject);
+                    setProject(data.project);
                     setFiles(Array.isArray(data.files) ? data.files : []);
                     setNotes(Array.isArray(data.notes) ? data.notes : []);
                 }
@@ -67,6 +65,17 @@ function PublicProject() {
             isMounted = false;
         };
     }, []);
+
+    const token = window.location.pathname
+        .split("/")
+        .filter(Boolean)
+        .pop();
+
+    const getPublicFileUrl = (fileId) =>
+        `${API_URL}/api/files/public/${encodeURIComponent(token)}/${encodeURIComponent(fileId)}`;
+
+    const isPreviewable = (fileName = "") =>
+        /\.(pdf|png|jpe?g|gif|webp)$/i.test(fileName);
 
     return (
         <div className="app">
@@ -107,34 +116,76 @@ function PublicProject() {
                         </section>
 
                         <section className="upload-panel public-content-section">
-                            <h2>Uploaded Files</h2>
+                            <h2>Uploaded Files ({files.length})</h2>
 
                             {files.length === 0 ? (
                                 <p>No files have been shared.</p>
                             ) : (
-                                <ul>
-                                    {files.map((file) => (
-                                        <li key={file._id}>
-                                            {file.fileName}
-                                        </li>
-                                    ))}
+                                <ul className="public-file-list">
+                                    {files.map((file) => {
+                                        const fileUrl = getPublicFileUrl(
+                                            file._id
+                                        );
+
+                                        return (
+                                            <li
+                                                key={file._id}
+                                                className="public-file-item"
+                                            >
+                                                <span>{file.fileName}</span>
+
+                                                <div className="public-file-actions">
+                                                    {isPreviewable(
+                                                        file.fileName
+                                                    ) && (
+                                                        <a
+                                                            href={fileUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                        >
+                                                            Preview
+                                                        </a>
+                                                    )}
+
+                                                    <a
+                                                        href={`${fileUrl}?download=true`}
+                                                    >
+                                                        Download
+                                                    </a>
+                                                </div>
+                                            </li>
+                                        );
+                                    })}
                                 </ul>
                             )}
                         </section>
 
                         <section className="upload-panel public-content-section">
-                            <h2>Project Notes</h2>
+                            <h2>Project Notes ({notes.length})</h2>
 
                             {notes.length === 0 ? (
                                 <p>No notes have been shared.</p>
                             ) : (
                                 notes.map((note) => (
-                                    <article key={note._id}>
-                                        <h3>{note.title}</h3>
+                                    <article
+                                        key={note._id}
+                                        className="public-note"
+                                    >
+                                        <h3>{note.title || "Untitled Note"}</h3>
+
                                         <p>
                                             {note.content ||
                                                 "No content available."}
                                         </p>
+
+                                        {note.updatedAt && (
+                                            <small>
+                                                Last updated:{" "}
+                                                {new Date(
+                                                    note.updatedAt
+                                                ).toLocaleString()}
+                                            </small>
+                                        )}
                                     </article>
                                 ))
                             )}

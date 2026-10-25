@@ -523,3 +523,17 @@ button:disabled {
     padding: 16px 20px;
   }
 }
+
+/* Public shared project title */
+.public-project-title {
+  display: block;
+  color: #29264f;
+  font-size: 32px;
+  font-weight: 800;
+  margin: 0 0 20px;
+  text-align: center;
+  opacity: 1;
+  visibility: visible;
+  animation: none !important;
+  transition: none !important;
+}

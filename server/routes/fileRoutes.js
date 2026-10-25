@@ -5,7 +5,8 @@ import {
     uploadFile,
     getProjectFiles,
     downloadFile,
-    deleteFile
+    deleteFile,
+    getPublicFile
 } from "../controllers/fileController.js";
 
 import authMiddleware from "../middleware/authMiddleware.js";
@@ -13,6 +14,7 @@ import upload from "../middleware/uploadMiddleware.js";
 
 const router = express.Router();
 
+router.get("/public/:token/:fileId", getPublicFile);
 
 router.post(
     "/upload",
@@ -20,7 +22,6 @@ router.post(
     upload.single("file"),
     uploadFile
 );
-
 
 router.get(
     "/project/:projectId",
@@ -34,7 +35,6 @@ router.get(
     downloadFile
 );
 
-
 router.delete(
     "/:fileId",
     authMiddleware,
@@ -42,5 +42,3 @@ router.delete(
 );
 
 export default router;
-
-

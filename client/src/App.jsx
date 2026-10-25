@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
+import PublicProject from "./PublicProject";
 
 import {
   getProjectFiles,
@@ -14,6 +15,7 @@ import {
   getMyProjects,
   createProject,
   generateAIResponse,
+  shareProject,
 } from "./api";
 
 function App() {
@@ -22,74 +24,43 @@ function App() {
   );
 
   const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem("collabsphere_user");
+
     try {
-      return JSON.parse(
-        localStorage.getItem("collabsphere_user") || "null"
-      );
+      return savedUser ? JSON.parse(savedUser) : null;
     } catch {
       return null;
     }
   });
-
-  const [projects, setProjects] = useState([]);
-  const [projectId, setProjectId] = useState("");
-
-  const [newProjectTitle, setNewProjectTitle] = useState("");
-  const [newProjectDescription, setNewProjectDescription] = useState("");
 
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [files, setFiles] = useState([]);
-  const [notes, setNotes] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [projectId, setProjectId] = useState("");
+  const [projectTitle, setProjectTitle] = useState("");
+  const [projectDescription, setProjectDescription] = useState("");
 
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+  const [files, setFiles] = useState([]);
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  const [notes, setNotes] = useState([]);
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteContent, setNoteContent] = useState("");
   const [editingNoteId, setEditingNoteId] = useState(null);
 
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  const [aiAction, setAiAction] = useState("chat");
-  const [aiContent, setAiContent] = useState("");
+  const [aiPrompt, setAiPrompt] = useState("");
   const [aiResponse, setAiResponse] = useState("");
 
-  useEffect(() => {
-    if (token && user) {
-      loadProjects(token);
-    }
-  }, []);
 
-  async function loadProjects(authToken) {
-    try {
-      setLoading(true);
+  const [shareLink, setShareLink] = useState("");
 
-      const data = await getMyProjects(authToken);
-      setProjects(data);
 
-      if (data.length > 0) {
-        setProjectId((currentId) =>
-          data.some((project) => project._id === currentId)
-            ? currentId
-            : data[0]._id
-        );
-
-        setMessage(`${data.length} project(s) loaded.`);
-      } else {
-        setProjectId("");
-        setFiles([]);
-        setNotes([]);
-        setMessage("No projects found. Create your first project below.");
-      }
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
 
   async function handleAuth(event) {
     event.preventDefault();
@@ -98,69 +69,33 @@ function App() {
       setLoading(true);
       setMessage("");
 
-      if (isRegister) {
-        await registerUser(name.trim(), email.trim(), password);
+      const data = isRegister
+        ? await registerUser({ name, email, password })
+        : await loginUser({ email, password });
 
-        setIsRegister(false);
-        setName("");
-        setPassword("");
+      const authToken = data.token;
+      const authUser = data.user;
 
-        setMessage("Registration successful! Please log in.");
-      } else {
-        const data = await loginUser(email.trim(), password);
-
-        localStorage.setItem("collabsphere_token", data.token);
-        localStorage.setItem(
-          "collabsphere_user",
-          JSON.stringify(data.user)
-        );
-
-        setToken(data.token);
-        setUser(data.user);
-        setPassword("");
-
-        await loadProjects(data.token);
+      if (!authToken || !authUser) {
+        throw new Error("Authentication response is incomplete.");
       }
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }
 
-  async function handleCreateProject(event) {
-    event.preventDefault();
-
-    if (!newProjectTitle.trim()) {
-      setMessage("Please enter a project title.");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setMessage("");
-
-      const project = await createProject(
-        newProjectTitle.trim(),
-        newProjectDescription.trim(),
-        token
+      localStorage.setItem("collabsphere_token", authToken);
+      localStorage.setItem(
+        "collabsphere_user",
+        JSON.stringify(authUser)
       );
 
-      setProjects((previousProjects) => [
-        ...previousProjects,
-        project,
-      ]);
-
-      setProjectId(project._id);
-      setFiles([]);
-      setNotes([]);
-      setSelectedFile(null);
-      setNewProjectTitle("");
-      setNewProjectDescription("");
-
-      setMessage("Project created successfully!");
+      setToken(authToken);
+      setUser(authUser);
+      setPassword("");
+      setMessage(
+        isRegister
+          ? "Registration successful!"
+          : "Login successful!"
+      );
     } catch (error) {
-      setMessage(error.message);
+      setMessage(error.message || "Authentication failed.");
     } finally {
       setLoading(false);
     }
@@ -176,14 +111,145 @@ function App() {
     setProjectId("");
     setFiles([]);
     setNotes([]);
-    setSelectedFile(null);
-    setTitle("");
-    setContent("");
-    setEditingNoteId(null);
-    setNewProjectTitle("");
-    setNewProjectDescription("");
-    setMessage("You have logged out.");
+    setShareLink("");
+    setMessage("Logged out successfully.");
   }
+
+
+  async function loadProjects(authToken = token) {
+    if (!authToken) return;
+
+    try {
+      setLoading(true);
+      setMessage("");
+
+      const data = await getMyProjects(authToken);
+      const projectList = Array.isArray(data)
+        ? data
+        : data.projects || [];
+
+      setProjects(projectList);
+
+      setProjectId((currentId) => {
+        if (projectList.some((project) => project._id === currentId)) {
+          return currentId;
+        }
+
+        return projectList[0]?._id || "";
+      });
+
+      if (projectList.length === 0) {
+        setMessage("No projects found. Create your first project.");
+      }
+    } catch (error) {
+      setMessage(error.message || "Could not load projects.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+  useEffect(() => {
+    if (token) {
+      loadProjects(token);
+    }
+  }, [token]);
+
+
+  async function handleCreateProject(event) {
+    event.preventDefault();
+
+    if (!projectTitle.trim()) {
+      setMessage("Please enter a project title.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+
+      const data = await createProject(
+        {
+          title: projectTitle.trim(),
+          description: projectDescription.trim(),
+        },
+        token
+      );
+
+      const newProject = data.project || data;
+
+      setProjectTitle("");
+      setProjectDescription("");
+
+      const updatedProjects = await getMyProjects(token);
+      const projectList = Array.isArray(updatedProjects)
+        ? updatedProjects
+        : updatedProjects.projects || [];
+
+      setProjects(projectList);
+      setProjectId(newProject._id || projectList[0]?._id || "");
+      setShareLink("");
+
+      setMessage("Project created successfully!");
+    } catch (error) {
+      setMessage(error.message || "Could not create project.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+  function handleProjectChange(newProjectId) {
+    setProjectId(newProjectId);
+    setFiles([]);
+    setNotes([]);
+    setShareLink("");
+    setMessage("");
+  }
+
+  async function handleShareProject() {
+    if (!projectId) {
+      setMessage("Please select a project first.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+
+      const data = await shareProject(projectId, token);
+
+      if (!data.shareToken) {
+        throw new Error("The server did not return a share token.");
+      }
+
+      const link =
+        `${window.location.origin}/public/${data.shareToken}`;
+
+      setShareLink(link);
+      setMessage("Project sharing enabled!");
+    } catch (error) {
+      setMessage(error.message || "Could not share project.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+  async function handleCopyShareLink() {
+    if (!shareLink) return;
+
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setMessage("Share link copied!");
+    } catch {
+      setMessage(
+        "Copy failed. Select the link and copy it manually."
+      );
+    }
+  }
+
+
 
   async function loadFiles() {
     if (!projectId) {
@@ -193,16 +259,62 @@ function App() {
 
     try {
       setLoading(true);
+      setMessage("");
 
       const data = await getProjectFiles(projectId, token);
-      setFiles(data);
-      setMessage(`${data.length} file(s) found.`);
+      setFiles(Array.isArray(data) ? data : data.files || []);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(error.message || "Could not load files.");
     } finally {
       setLoading(false);
     }
   }
+
+
+  async function handleUploadFile(event) {
+    event.preventDefault();
+
+    if (!projectId || !selectedFile) {
+      setMessage("Select a project and a file first.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("projectId", projectId);
+
+      await uploadProjectFile(formData, token);
+
+      setSelectedFile(null);
+      await loadFiles();
+      setMessage("File uploaded successfully!");
+    } catch (error) {
+      setMessage(error.message || "File upload failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+  async function handleDownloadFile(fileId) {
+    try {
+      setLoading(true);
+      setMessage("");
+
+      await downloadProjectFile(fileId, token);
+
+      setMessage("Download requested.");
+    } catch (error) {
+      setMessage(error.message || "File download failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
 
   async function loadNotes() {
     if (!projectId) {
@@ -212,143 +324,64 @@ function App() {
 
     try {
       setLoading(true);
+      setMessage("");
 
       const data = await getProjectNotes(projectId, token);
-      setNotes(data);
-      setMessage(`${data.length} note(s) found.`);
+      setNotes(Array.isArray(data) ? data : data.notes || []);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(error.message || "Could not load notes.");
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleProjectChange(value) {
-    setProjectId(value);
-    setFiles([]);
-    setNotes([]);
-    setEditingNoteId(null);
-    setTitle("");
-    setContent("");
 
-    if (!value) return;
+  async function handleSaveNote(event) {
+    event.preventDefault();
 
-    try {
-      setLoading(true);
-
-      const [fileData, noteData] = await Promise.all([
-        getProjectFiles(value, token),
-        getProjectNotes(value, token),
-      ]);
-
-      setFiles(fileData);
-      setNotes(noteData);
-      setMessage("Project files and notes loaded.");
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleUpload() {
-    if (!projectId) {
-      setMessage("Please select a project first.");
-      return;
-    }
-
-    if (!selectedFile) {
-      setMessage("Please select a file.");
+    if (!projectId || !noteTitle.trim() || !noteContent.trim()) {
+      setMessage("Enter both a note title and content.");
       return;
     }
 
     try {
       setLoading(true);
+      setMessage("");
 
-      await uploadProjectFile(projectId, selectedFile, token);
+      const noteData = {
+        title: noteTitle.trim(),
+        content: noteContent.trim(),
+        projectId,
+      };
 
-      setSelectedFile(null);
-
-      const input = document.getElementById("fileInput");
-      if (input) input.value = "";
-
-      const data = await getProjectFiles(projectId, token);
-
-      setFiles(data);
-      setMessage("File uploaded successfully!");
-    } catch (error) {
-      setMessage(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleDownload(file) {
-    try {
-      await downloadProjectFile(file._id, token, file.fileName);
-      setMessage("Download started.");
-    } catch (error) {
-      setMessage(error.message);
-    }
-  }
-
-  async function handleSaveNote() {
-    if (!projectId) {
-      setMessage("Please select a project first.");
-      return;
-    }
-
-    if (!title.trim()) {
-      setMessage("Please enter a note title.");
-      return;
-    }
-
-    const wasEditing = Boolean(editingNoteId);
-
-    try {
-      setLoading(true);
-
-      if (wasEditing) {
-        await updateProjectNote(
-          editingNoteId,
-          title.trim(),
-          content,
-          token
-        );
+      if (editingNoteId) {
+        await updateProjectNote(editingNoteId, noteData, token);
+        setMessage("Note updated successfully!");
       } else {
-        await createProjectNote(
-          projectId,
-          title.trim(),
-          content,
-          token
-        );
+        await createProjectNote(noteData, token);
+        setMessage("Note created successfully!");
       }
 
-      setTitle("");
-      setContent("");
+      setNoteTitle("");
+      setNoteContent("");
       setEditingNoteId(null);
 
       const data = await getProjectNotes(projectId, token);
-      setNotes(data);
-
-      setMessage(
-        wasEditing
-          ? "Note updated successfully!"
-          : "Note created successfully!"
-      );
+      setNotes(Array.isArray(data) ? data : data.notes || []);
     } catch (error) {
-      setMessage(error.message);
+      setMessage(error.message || "Could not save note.");
     } finally {
       setLoading(false);
     }
   }
 
+
   function handleEditNote(note) {
     setEditingNoteId(note._id);
-    setTitle(note.title);
-    setContent(note.content || "");
-    setMessage("Edit your note and save the changes.");
+    setNoteTitle(note.title || "");
+    setNoteContent(note.content || "");
   }
+
 
   async function handleDeleteNote(noteId) {
     if (!window.confirm("Are you sure you want to delete this note?")) {
@@ -357,31 +390,31 @@ function App() {
 
     try {
       setLoading(true);
+      setMessage("");
 
       await deleteProjectNote(noteId, token);
 
       const data = await getProjectNotes(projectId, token);
-      setNotes(data);
+      setNotes(Array.isArray(data) ? data : data.notes || []);
+
       setMessage("Note deleted successfully!");
     } catch (error) {
-      setMessage(error.message);
+      setMessage(error.message || "Could not delete note.");
     } finally {
       setLoading(false);
     }
   }
 
-  function cancelEdit() {
-    setEditingNoteId(null);
-    setTitle("");
-    setContent("");
-    setMessage("");
-  }
-
   async function handleAIRequest(event) {
     event.preventDefault();
 
-    if (!aiContent.trim()) {
-      setMessage("Please enter a question or content for AI.");
+    if (!aiPrompt.trim()) {
+      setMessage("Enter a prompt for the AI assistant.");
+      return;
+    }
+
+    if (!token) {
+      setMessage("Please log in again.");
       return;
     }
 
@@ -390,14 +423,17 @@ function App() {
       setMessage("");
       setAiResponse("");
 
-      const result = await generateAIResponse(
-        aiAction,
-        aiContent.trim(),
+      const data = await generateAIResponse(
+        {
+          action: "chat",
+          content: aiPrompt.trim()
+        },
         token
       );
 
-      setAiResponse(result);
-      setMessage("AI response generated successfully!");
+      setAiResponse(
+        data.response || data.text || "No response returned."
+      );
     } catch (error) {
       setMessage(error.message || "AI request failed.");
     } finally {
@@ -405,39 +441,30 @@ function App() {
     }
   }
 
+
+
+
   if (!token || !user) {
     return (
       <div className="app">
         <nav className="navbar">
-          <div className="brand">
-            <div className="brand-text">
-              <h2>
-                CollabSphere<span className="brand-dot">.</span>
-              </h2>
-              <p>BUILD TOGETHER. GROW TOGETHER.</p>
-            </div>
-          </div>
-
-          <div className="navbar-center">
-            Developer Collaboration Platform
+          <div className="brand-text">
+            <h2>
+              CollabSphere<span className="brand-dot">.</span>
+            </h2>
+            <p>BUILD TOGETHER. GROW TOGETHER.</p>
           </div>
         </nav>
 
         <main className="container">
           <section className="upload-panel">
-            <h1>{isRegister ? "Create Your Account" : "Welcome Back"}</h1>
-
-            <p>
-              {isRegister
-                ? "Register to start collaborating."
-                : "Log in to access your project workspace."}
-            </p>
+            <h1>{isRegister ? "Create Account" : "Welcome Back"}</h1>
 
             <form onSubmit={handleAuth}>
               {isRegister && (
                 <input
                   type="text"
-                  placeholder="Your name"
+                  placeholder="Full name"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                   required
@@ -464,105 +491,87 @@ function App() {
                 {loading
                   ? "Please wait..."
                   : isRegister
-                    ? "Create Account"
+                    ? "Register"
                     : "Login"}
               </button>
             </form>
 
-            <p>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => {
+                setIsRegister(!isRegister);
+                setMessage("");
+              }}
+            >
               {isRegister
-                ? "Already have an account?"
-                : "Don't have an account?"}{" "}
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={loading}
-                onClick={() => {
-                  setIsRegister(!isRegister);
-                  setMessage("");
-                }}
-              >
-                {isRegister ? "Login" : "Register"}
-              </button>
-            </p>
+                ? "Already have an account? Login"
+                : "New here? Create an account"}
+            </button>
 
-            {message && <p className="message">{message}</p>}
+            {message && <p role="status">{message}</p>}
           </section>
         </main>
       </div>
     );
   }
 
-
+  // Main dashboard
   return (
     <div className="app">
       <nav className="navbar">
-        <div className="brand">
-          <div className="brand-icon">C</div>
-
-          <div className="brand-text">
-            <h2>
-              CollabSphere<span className="brand-dot">.</span>
-            </h2>
-            <p>BUILD TOGETHER. GROW TOGETHER.</p>
-          </div>
+        <div className="brand-text">
+          <h2>
+            CollabSphere<span className="brand-dot">.</span>
+          </h2>
+          <p>BUILD TOGETHER. GROW TOGETHER.</p>
         </div>
 
-        <div className="navbar-center">
-          <span className="status-dot"></span>
-          Developer Collaboration Platform
+        <div>
+          <span>{user.name || user.email}</span>
+          <button type="button" onClick={handleLogout}>
+            Logout
+          </button>
         </div>
-
-        <button className="logout-btn" onClick={handleLogout}>
-          ↗ Logout
-        </button>
       </nav>
 
       <main className="container">
-        <h1>Project Workspace</h1>
+        {message && <p role="status">{message}</p>}
 
-        <p>
-          Welcome, {user.name}! Manage your project files and notes in one
-          place.
-        </p>
-
+        {/* Create project */}
         <section className="upload-panel">
-          <h2>Create a New Project</h2>
+          <h2>Create Project</h2>
 
           <form onSubmit={handleCreateProject}>
             <input
               type="text"
               placeholder="Project title"
-              value={newProjectTitle}
-              onChange={(event) =>
-                setNewProjectTitle(event.target.value)
-              }
+              value={projectTitle}
+              onChange={(event) => setProjectTitle(event.target.value)}
               required
             />
 
             <textarea
-              placeholder="Project description (optional)"
-              rows="3"
-              value={newProjectDescription}
+              placeholder="Project description"
+              value={projectDescription}
               onChange={(event) =>
-                setNewProjectDescription(event.target.value)
+                setProjectDescription(event.target.value)
               }
             />
 
             <button type="submit" disabled={loading}>
-              {loading ? "Please wait..." : "Create Project"}
+              Create Project
             </button>
           </form>
         </section>
 
+        {/* Select and share project */}
         <section className="upload-panel">
           <h2>Select Your Project</h2>
 
           <select
             value={projectId}
-            onChange={(event) =>
-              handleProjectChange(event.target.value)
-            }
+            onChange={(event) => handleProjectChange(event.target.value)}
             disabled={loading || projects.length === 0}
           >
             {projects.length === 0 ? (
@@ -578,6 +587,41 @@ function App() {
 
           <div className="action-row">
             <button
+              type="button"
+              disabled={loading || !projectId}
+              onClick={handleShareProject}
+            >
+              Share Project
+            </button>
+
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => loadProjects(token)}
+            >
+              Refresh Projects
+            </button>
+          </div>
+
+          {shareLink && (
+            <div>
+              <label htmlFor="public-share-link">Public share link</label>
+              <input
+                id="public-share-link"
+                value={shareLink}
+                readOnly
+                onFocus={(event) => event.target.select()}
+              />
+
+              <button type="button" onClick={handleCopyShareLink}>
+                Copy Link
+              </button>
+            </div>
+          )}
+
+          <div className="action-row">
+            <button
+              type="button"
               disabled={loading || !projectId}
               onClick={loadFiles}
             >
@@ -585,194 +629,157 @@ function App() {
             </button>
 
             <button
+              type="button"
               disabled={loading || !projectId}
               onClick={loadNotes}
             >
               Load Notes
             </button>
-
-            <button
-              className="secondary-button"
-              disabled={loading}
-              onClick={() => loadProjects(token)}
-            >
-              Refresh Projects
-            </button>
           </div>
         </section>
 
-        {message && <p className="message">{message}</p>}
-
+        {/* File upload */}
         <section className="upload-panel">
-          <h2>CollabSphere AI Assistant</h2>
-          <p>
-            Ask a question, summarize notes, or get help understanding code.
-          </p>
+          <h2>Project Files</h2>
 
-          <form onSubmit={handleAIRequest}>
-            <label htmlFor="aiAction">Choose an AI action</label>
-
-            <select
-              id="aiAction"
-              value={aiAction}
-              onChange={(event) => setAiAction(event.target.value)}
-              disabled={loading}
-            >
-              <option value="chat">Chat</option>
-              <option value="summarize">Summarize</option>
-              <option value="explain">Explain</option>
-            </select>
-
-            <textarea
-              placeholder="Enter your question, notes, or code here..."
-              rows="5"
-              value={aiContent}
-              onChange={(event) => setAiContent(event.target.value)}
-              disabled={loading}
+          <form onSubmit={handleUploadFile}>
+            <input
+              type="file"
+              onChange={(event) =>
+                setSelectedFile(event.target.files?.[0] || null)
+              }
               required
             />
 
             <button
               type="submit"
-              disabled={loading || !aiContent.trim()}
+              disabled={loading || !projectId || !selectedFile}
             >
-              {loading ? "AI is thinking..." : "Generate AI Response"}
+              Upload File
             </button>
           </form>
 
-          {aiResponse && (
-            <div className="file-item" style={{ marginTop: "16px" }}>
-              <div>
-                <h3>AI Response</h3>
-                <p style={{ whiteSpace: "pre-wrap" }}>{aiResponse}</p>
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="upload-panel">
-          <h2>Upload a File</h2>
-
-          <input
-            id="fileInput"
-            type="file"
-            onChange={(event) =>
-              setSelectedFile(event.target.files[0] || null)
-            }
-          />
-
-          {selectedFile && <p>Selected: {selectedFile.name}</p>}
-
-          <button
-            disabled={loading || !projectId}
-            onClick={handleUpload}
-          >
-            {loading ? "Please wait..." : "Upload File"}
-          </button>
-        </section>
-
-        <section className="file-list">
-          <h2>Your Files</h2>
 
           {files.length === 0 ? (
-            <p>No files loaded for this project.</p>
+            <p className="empty-message">No files uploaded yet.</p>
           ) : (
-            files.map((file) => (
-              <div className="file-item" key={file._id}>
-                <div>
-                  <h3>📄 {file.fileName}</h3>
+            files.map((file) => {
+              const fileName =
+                file.originalName ||
+                file.filename ||
+                file.fileName ||
+                file.name ||
+                "Untitled file";
 
-                  <p>
-                    Uploaded:{" "}
-                    {file.createdAt
-                      ? new Date(file.createdAt).toLocaleDateString()
-                      : "Date unavailable"}
-                  </p>
+              const fileId = file._id || file.id;
+
+              return (
+                <div key={fileId} className="action-row file-row">
+                  <div className="file-info">
+                    <span className="file-icon">📄</span>
+                    <span className="file-name">{fileName}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadFile(fileId)}
+                    disabled={loading || !fileId}
+                  >
+                    Download
+                  </button>
                 </div>
-
-                <button
-                  disabled={loading}
-                  onClick={() => handleDownload(file)}
-                >
-                  Download
-                </button>
-              </div>
-            ))
+              );
+            })
           )}
         </section>
+      
 
-        <section className="upload-panel notes-panel">
-          <h2>{editingNoteId ? "Edit Note" : "Create a Note"}</h2>
+        {/* Notes create and edit */}
+        <section className="upload-panel">
+          <h2>{editingNoteId ? "Edit Note" : "Project Notes"}</h2>
 
-          <input
-            type="text"
-            placeholder="Note title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-          />
+          <form onSubmit={handleSaveNote}>
+            <input
+              type="text"
+              placeholder="Note title"
+              value={noteTitle}
+              onChange={(event) => setNoteTitle(event.target.value)}
+              required
+            />
 
-          <textarea
-            placeholder="Write your project notes here..."
-            rows="5"
-            value={content}
-            onChange={(event) => setContent(event.target.value)}
-          />
+            <textarea
+              placeholder="Write your note..."
+              value={noteContent}
+              onChange={(event) => setNoteContent(event.target.value)}
+              required
+            />
 
-          <div className="action-row">
-            <button
-              disabled={loading || !projectId}
-              onClick={handleSaveNote}
-            >
-              {loading
-                ? "Please wait..."
-                : editingNoteId
-                  ? "Update Note"
-                  : "Save Note"}
+            <button type="submit" disabled={loading || !projectId}>
+              {editingNoteId ? "Update Note" : "Create Note"}
             </button>
 
             {editingNoteId && (
               <button
+                type="button"
                 className="secondary-button"
-                disabled={loading}
-                onClick={cancelEdit}
+                onClick={() => {
+                  setEditingNoteId(null);
+                  setNoteTitle("");
+                  setNoteContent("");
+                }}
               >
-                Cancel
+                Cancel Edit
               </button>
             )}
-          </div>
+          </form>
+
+          {notes.map((note) => (
+            <article key={note._id}>
+              <h3>{note.title}</h3>
+              <p>{note.content}</p>
+
+              <div className="action-row">
+                <button
+                  type="button"
+                  onClick={() => handleEditNote(note)}
+                >
+                  Edit
+                </button>
+
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleDeleteNote(note._id)}
+                >
+                  Delete
+                </button>
+              </div>
+            </article>
+          ))}
         </section>
 
-        <section className="file-list">
-          <h2>Your Notes</h2>
+        {/* AI assistant */}
+        <section className="upload-panel">
+          <h2>AI Assistant</h2>
 
-          {notes.length === 0 ? (
-            <p>No notes loaded for this project.</p>
-          ) : (
-            notes.map((note) => (
-              <div className="file-item note-item" key={note._id}>
-                <div>
-                  <h3>{note.title}</h3>
-                  <p>{note.content || "No content"}</p>
-                </div>
+          <form onSubmit={handleAIRequest}>
+            <textarea
+              placeholder="Ask AI something about your project..."
+              value={aiPrompt}
+              onChange={(event) => setAiPrompt(event.target.value)}
+              required
+            />
 
-                <div className="action-row">
-                  <button
-                    disabled={loading}
-                    onClick={() => handleEditNote(note)}
-                  >
-                    Edit
-                  </button>
+            <button type="submit" disabled={loading}>
+              Generate AI Response
+            </button>
+          </form>
 
-                  <button
-                    className="secondary-button"
-                    disabled={loading}
-                    onClick={() => handleDeleteNote(note._id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))
+          {aiResponse && (
+            <div>
+              <h3>AI Response</h3>
+              <p>{aiResponse}</p>
+            </div>
           )}
         </section>
       </main>
@@ -780,4 +787,13 @@ function App() {
   );
 }
 
-export default App;
+
+function AppWrapper() {
+  if (window.location.pathname.startsWith("/public/")) {
+    return <PublicProject />;
+  }
+
+  return <App />;
+}
+
+export default AppWrapper;

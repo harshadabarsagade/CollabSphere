@@ -1,7 +1,59 @@
+const generateGeminiResponse = async (prompt) => {
+    const apiKey = process.env.API_KEY;
 
-export const generateAIResponse = async (req, res) => {
+    if (!apiKey) {
+        throw new Error("API_KEY is missing from server/.env");
+    }
+
+    const response = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-goog-api-key": apiKey
+            },
+            body: JSON.stringify({
+                contents: [
+                    {
+                        parts: [{ text: prompt }]
+                    }
+                ],
+                generationConfig: {
+                    maxOutputTokens: 500
+                }
+            })
+        }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        console.error("Gemini API error:", data.error?.message);
+
+        const error = new Error(
+            data.error?.message || "Gemini API request failed"
+        );
+
+        error.status = response.status;
+        throw error;
+    }
+
+    const result = data.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text || "")
+        .join("")
+        .trim();
+
+    if (!result) {
+        throw new Error("Gemini returned an empty response");
+    }
+
+    return result;
+};
+
+const handleGeminiRequest = async (req, res, promptBuilder) => {
     try {
-        const { action, content } = req.body;
+        const { content } = req.body;
 
         if (typeof content !== "string" || !content.trim()) {
             return res.status(400).json({
@@ -9,79 +61,67 @@ export const generateAIResponse = async (req, res) => {
             });
         }
 
-        const prompts = {
-            summarize: `Summarize this content in simple points:\n\n${content}`,
-            explain: `Explain this code or content in beginner-friendly language with an example:\n\n${content}`,
-            chat: `You are the AI assistant for CollabSphere. Help developers with coding, projects, and collaboration.\n\n${content}`
-        };
-
-        if (!prompts[action]) {
-            return res.status(400).json({
-                message: "Action must be summarize, explain, or chat"
-            });
-        }
-
-        const apiKey = process.env.GROQ_API_KEY;
-
-        if (!apiKey) {
-            return res.status(500).json({
-                message: "GROQ_API_KEY is missing from server/.env"
-            });
-        }
-
-        const response = await fetch(
-            "https://api.groq.com/openai/v1/chat/completions",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: "openai/gpt-oss-120b",
-                    messages: [
-                        {
-                            role: "user",
-                            content: prompts[action]
-                        }
-                    ],
-                    max_completion_tokens: 1024
-                })
-            }
+        const result = await generateGeminiResponse(
+            promptBuilder(content.trim())
         );
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            console.error("Groq API error:", data);
-
-            return res.status(response.status).json({
-                message:
-                    data.error?.message ||
-                    "Groq API request failed"
-            });
-        }
-
-        const aiResponse =
-            data.choices?.[0]?.message?.content?.trim();
-
-        if (!aiResponse) {
-            return res.status(502).json({
-                message: "Groq returned an empty response"
-            });
-        }
-
         return res.status(200).json({
-            message: "AI response generated successfully",
-            action,
-            response: aiResponse
+            message: "Gemini response generated successfully",
+            response: result
         });
-
     } catch (error) {
-        console.error("Groq controller error:", error.message);
+        console.error("Gemini controller error:", error.message);
 
-        return res.status(500).json({
-            message: "Failed to generate AI response"
+        return res.status(error.status || 500).json({
+            message: error.status
+                ? "Gemini API request failed"
+                : "Failed to generate Gemini response"
         });
     }
 };
+
+export const generateAIResponse = async (req, res) => {
+    const { action } = req.body;
+
+    const prompts = {
+        summarize: (content) =>
+            `Summarize in three short bullet points using simple English:\n${content}`,
+
+        explain: (content) =>
+            `Explain in simple English using 2-4 short bullet points. Keep it under 100 words:\n${content}`,
+
+        chat: (content) => `Answer in simple English using at most 2 short sentences. Maximum 30 words. No headings, markdown, emojis, or decorative symbols. Answer directly:\n${content}`
+    };
+
+    if (!prompts[action]) {
+        return res.status(400).json({
+            message: "Action must be summarize, explain, or chat"
+        });
+    }
+
+    return handleGeminiRequest(req, res, prompts[action]);
+};
+
+export const explainContent = (req, res) =>
+    handleGeminiRequest(
+        req,
+        res,
+        (content) =>
+            `Explain the following code or content in simple English. Explain its purpose and important parts. Use short bullet points:\n${content}`
+    );
+
+export const generateDocs = (req, res) =>
+    handleGeminiRequest(
+        req,
+        res,
+        (content) =>
+            `Generate clear technical documentation for this project or code. Include its purpose, features, setup instructions, and usage where applicable:\n${content}`
+    );
+
+export const generateReadme = (req, res) =>
+    handleGeminiRequest(
+        req,
+        res,
+        (content) =>
+            `Create a useful README.md in Markdown for this project. Include project overview, features, technologies, installation, configuration, and usage where applicable:\n${content}`
+    );
