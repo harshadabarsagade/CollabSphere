@@ -122,6 +122,23 @@ export async function downloadProjectFile(fileId, token, fileName) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+
+
+export async function getFileContent(fileId, token) {
+  const response = await fetch(
+    `${API_URL}/api/files/content/${fileId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  return handleResponse(response, "Could not read file content");
+}
+
+
+
 // Notes
 export async function getProjectNotes(projectId, token) {
   const response = await fetch(

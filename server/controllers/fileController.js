@@ -3,23 +3,42 @@ import Project from "../models/Project.js";
 import path from "path";
 import fs from "fs";
 
-// Use the same uploads directory as uploadMiddleware.js
 const uploadDir = path.resolve(process.cwd(), "uploads");
 
-// Resolve and validate a stored file path
+// Check project access for owner and members
+const canAccessProject = (project, userId) => {
+    if (!project) return false;
+
+    const currentUserId = userId.toString();
+    const ownerId = project.owner._id
+        ? project.owner._id.toString()
+        : project.owner.toString();
+
+    const isOwner = ownerId === currentUserId;
+
+    const isMember = (project.members || []).some((member) => {
+        const memberId = member._id
+            ? member._id.toString()
+            : member.toString();
+
+        return memberId === currentUserId;
+    });
+
+    return isOwner || isMember;
+};
+
+// Safely resolve a stored file path
 function getSafeFilePath(filePath) {
     if (!filePath || typeof filePath !== "string") {
         throw new Error("File path is missing");
     }
 
-    // Support both absolute paths and paths relative to process.cwd()
     const resolvedPath = path.isAbsolute(filePath)
         ? path.resolve(filePath)
         : path.resolve(process.cwd(), filePath);
 
     const relativePath = path.relative(uploadDir, resolvedPath);
 
-    // The file must be inside uploads/, not uploads itself
     if (
         !relativePath ||
         relativePath === ".." ||
@@ -34,6 +53,8 @@ function getSafeFilePath(filePath) {
 
 // Upload file
 export const uploadFile = async (req, res) => {
+    let uploadedPath;
+
     try {
         const { projectId } = req.body;
 
@@ -43,28 +64,27 @@ export const uploadFile = async (req, res) => {
             });
         }
 
+        uploadedPath = req.file.path;
+
         if (!projectId) {
+            fs.existsSync(uploadedPath) && fs.unlinkSync(uploadedPath);
+
             return res.status(400).json({
                 message: "Project ID is required"
             });
         }
 
-        const project = await Project.findOne({
-            _id: projectId,
-            owner: req.user.id
-        });
+        const project = await Project.findById(projectId);
 
-        if (!project) {
-            return res.status(404).json({
+        if (!project || !canAccessProject(project, req.user.id)) {
+            fs.existsSync(uploadedPath) && fs.unlinkSync(uploadedPath);
+
+            return res.status(403).json({
                 message: "Project not found or you do not have access"
             });
         }
 
-        // Save a path relative to the backend working directory
-        const storedPath = path.relative(
-            process.cwd(),
-            req.file.path
-        );
+        const storedPath = path.relative(process.cwd(), uploadedPath);
 
         const file = await File.create({
             fileName: req.file.originalname,
@@ -78,34 +98,38 @@ export const uploadFile = async (req, res) => {
             file
         });
     } catch (error) {
-        console.error("Upload file error:", error);
+        if (uploadedPath && fs.existsSync(uploadedPath)) {
+            fs.unlinkSync(uploadedPath);
+        }
+
+        console.error("Upload file error:", error.message);
 
         return res.status(500).json({
-            message: "Failed to upload file",
-            error: error.message
+            message: "Failed to upload file"
         });
     }
 };
 
-// Get files for a project
+// Get project files
 export const getProjectFiles = async (req, res) => {
     try {
         const { projectId } = req.params;
-
-        const project = await Project.findOne({
-            _id: projectId,
-            owner: req.user.id
-        });
+        const project = await Project.findById(projectId);
 
         if (!project) {
             return res.status(404).json({
-                message: "Project not found or you do not have access"
+                message: "Project not found"
+            });
+        }
+
+        if (!canAccessProject(project, req.user.id)) {
+            return res.status(403).json({
+                message: "You do not have access to this project"
             });
         }
 
         const files = await File.find({
-            project: projectId,
-            owner: req.user.id
+            project: projectId
         }).sort({ createdAt: -1 });
 
         return res.status(200).json({
@@ -113,33 +137,103 @@ export const getProjectFiles = async (req, res) => {
             files
         });
     } catch (error) {
-        console.error("Get project files error:", error);
+        console.error("Get project files error:", error.message);
 
         return res.status(500).json({
-            message: "Failed to fetch files",
-            error: error.message
+            message: "Failed to fetch files"
         });
     }
 };
+
+
+
+
+// Read file content for AI explanation
+export const readFileContent = async (req, res) => {
+    try {
+        const { fileId } = req.params;
+        const file = await File.findById(fileId);
+
+        if (!file) {
+            return res.status(404).json({
+                message: "File not found"
+            });
+        }
+
+        const project = await Project.findById(file.project);
+
+        if (!project || !canAccessProject(project, req.user.id)) {
+            return res.status(403).json({
+                message: "You do not have access to this file"
+            });
+        }
+
+        const filePath = getSafeFilePath(file.filePath);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({
+                message: "File missing from server. Please upload it again."
+            });
+        }
+
+        const allowedExtensions = [
+            ".js", ".jsx", ".ts", ".tsx", ".py",
+            ".html", ".css", ".json", ".md", ".txt"
+        ];
+
+        if (!allowedExtensions.includes(path.extname(file.fileName).toLowerCase())) {
+            return res.status(400).json({
+                message: "AI explanation is available only for text and code files."
+            });
+        }
+
+        const content = fs.readFileSync(filePath, "utf8");
+
+        if (content.length > 20000) {
+            return res.status(400).json({
+                message: "File is too large to explain. Maximum size is 20,000 characters."
+            });
+        }
+
+        return res.status(200).json({
+            fileName: file.fileName,
+            content
+        });
+    } catch (error) {
+        console.error("Read file content error:", error.message);
+
+        return res.status(500).json({
+            message: "Could not read file content"
+        });
+    }
+};
+
+
+
 
 // Download file
 export const downloadFile = async (req, res) => {
     try {
         const { fileId } = req.params;
-
-        const file = await File.findOne({
-            _id: fileId,
-            owner: req.user.id
-        });
+        const file = await File.findById(fileId);
 
         if (!file) {
-            console.warn("Download: database record not found", {
-                fileId,
-                userId: req.user.id
-            });
-
             return res.status(404).json({
-                message: "File not found or you do not have access"
+                message: "File not found"
+            });
+        }
+
+        const project = await Project.findById(file.project);
+
+        if (!project) {
+            return res.status(404).json({
+                message: "Project not found"
+            });
+        }
+
+        if (!canAccessProject(project, req.user.id)) {
+            return res.status(403).json({
+                message: "You do not have access to this file"
             });
         }
 
@@ -147,24 +241,13 @@ export const downloadFile = async (req, res) => {
 
         try {
             filePath = getSafeFilePath(file.filePath);
-        } catch (error) {
-            console.error("Download: invalid file path", {
-                fileId,
-                storedPath: file.filePath,
-                error: error.message
-            });
-
+        } catch {
             return res.status(400).json({
                 message: "Invalid file path"
             });
         }
 
         if (!fs.existsSync(filePath)) {
-            console.error("Download: file missing from server", {
-                fileId,
-                filePath
-            });
-
             return res.status(404).json({
                 message: "File missing from server. Please upload it again."
             });
@@ -172,7 +255,7 @@ export const downloadFile = async (req, res) => {
 
         return res.download(filePath, file.fileName, (error) => {
             if (error) {
-                console.error("Download stream error:", error);
+                console.error("Download stream error:", error.message);
 
                 if (!res.headersSent) {
                     res.status(500).json({
@@ -182,7 +265,7 @@ export const downloadFile = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error("Download file error:", error);
+        console.error("Download file error:", error.message);
 
         return res.status(500).json({
             message: "Failed to download file"
@@ -194,15 +277,25 @@ export const downloadFile = async (req, res) => {
 export const deleteFile = async (req, res) => {
     try {
         const { fileId } = req.params;
-
-        const file = await File.findOne({
-            _id: fileId,
-            owner: req.user.id
-        });
+        const file = await File.findById(fileId);
 
         if (!file) {
             return res.status(404).json({
-                message: "File not found or you do not have access"
+                message: "File not found"
+            });
+        }
+
+        const project = await Project.findById(file.project);
+
+        if (!project) {
+            return res.status(404).json({
+                message: "Project not found"
+            });
+        }
+
+        if (!canAccessProject(project, req.user.id)) {
+            return res.status(403).json({
+                message: "You do not have access to this file"
             });
         }
 
@@ -210,13 +303,7 @@ export const deleteFile = async (req, res) => {
 
         try {
             filePath = getSafeFilePath(file.filePath);
-        } catch (error) {
-            console.error("Delete: invalid file path", {
-                fileId,
-                storedPath: file.filePath,
-                error: error.message
-            });
-
+        } catch {
             return res.status(400).json({
                 message: "Invalid file path"
             });
@@ -232,7 +319,7 @@ export const deleteFile = async (req, res) => {
             message: "File deleted successfully"
         });
     } catch (error) {
-        console.error("Delete file error:", error);
+        console.error("Delete file error:", error.message);
 
         return res.status(500).json({
             message: "Failed to delete file"
@@ -271,13 +358,7 @@ export const getPublicFile = async (req, res) => {
 
         try {
             filePath = getSafeFilePath(file.filePath);
-        } catch (error) {
-            console.error("Public file: invalid path", {
-                fileId,
-                storedPath: file.filePath,
-                error: error.message
-            });
-
+        } catch {
             return res.status(400).json({
                 message: "Invalid file path"
             });
@@ -295,7 +376,7 @@ export const getPublicFile = async (req, res) => {
 
         return res.sendFile(filePath);
     } catch (error) {
-        console.error("Public file error:", error);
+        console.error("Public file error:", error.message);
 
         return res.status(500).json({
             message: "Failed to access public file"

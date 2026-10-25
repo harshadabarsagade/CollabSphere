@@ -4,6 +4,7 @@ import PublicProject from "./PublicProject";
 
 import {
   getProjectFiles,
+  getFileContent,
   uploadProjectFile,
   downloadProjectFile,
   getProjectNotes,
@@ -15,6 +16,7 @@ import {
   getMyProjects,
   createProject,
   generateAIResponse,
+  explainContent,
   shareProject,
 } from "./api";
 
@@ -287,7 +289,7 @@ function App() {
       formData.append("file", selectedFile);
       formData.append("projectId", projectId);
 
-      await uploadProjectFile(formData, token);
+      await uploadProjectFile(projectId, selectedFile, token);
 
       setSelectedFile(null);
       await loadFiles();
@@ -310,6 +312,28 @@ function App() {
       setMessage("Download requested.");
     } catch (error) {
       setMessage(error.message || "File download failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+  async function handleExplainCode(fileId) {
+    try {
+      setLoading(true);
+      setMessage("");
+      setAiResponse("");
+
+      const fileData = await getFileContent(fileId, token);
+
+      const result = await explainContent(
+        `Explain this code file named "${fileData.fileName}" in simple English. Explain its purpose, important functions, and how it works. Do not execute the code.\n\n${fileData.content}`,
+        token
+      );
+
+      setAiResponse(result || "No explanation returned.");
+    } catch (error) {
+      setMessage(error.message || "Could not explain this code.");
     } finally {
       setLoading(false);
     }
@@ -516,6 +540,29 @@ function App() {
     );
   }
 
+
+  async function handleExplainNote(note, action) {
+    try {
+      setLoading(true);
+      setMessage("");
+      setAiResponse("");
+
+      const prompt =
+        action === "improve"
+          ? `Suggest improvements for this note. Give practical suggestions in simple English:\n\nTitle: ${note.title}\nContent: ${note.content}`
+          : `Explain this note in simple English:\n\nTitle: ${note.title}\nContent: ${note.content}`;
+
+      const result = await explainContent(prompt, token);
+      setAiResponse(result || "No response returned.");
+    } catch (error) {
+      setMessage(error.message || "Could not process note with AI.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+
   // Main dashboard
   return (
     <div className="app">
@@ -687,12 +734,21 @@ function App() {
                   >
                     Download
                   </button>
+
+
+                  <button
+                    type="button"
+                    onClick={() => handleExplainCode(fileId)}
+                    disabled={loading || !fileId}
+                  >
+                    Explain This Code
+                  </button>
                 </div>
               );
             })
           )}
         </section>
-      
+
 
         {/* Notes create and edit */}
         <section className="upload-panel">
@@ -753,6 +809,27 @@ function App() {
                 >
                   Delete
                 </button>
+
+
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleExplainNote(note, "explain")}
+                >
+                  Explain This Note
+                </button>
+
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => handleExplainNote(note, "improve")}
+                >
+                  Suggest Improvements
+                </button>
+
+
+
+
               </div>
             </article>
           ))}

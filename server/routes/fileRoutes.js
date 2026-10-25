@@ -5,6 +5,7 @@ import {
     uploadFile,
     getProjectFiles,
     downloadFile,
+    readFileContent,
     deleteFile,
     getPublicFile
 } from "../controllers/fileController.js";
@@ -34,6 +35,15 @@ router.get(
     authMiddleware,
     downloadFile
 );
+
+
+router.get(
+    "/content/:fileId",
+    authMiddleware,
+    readFileContent
+);
+
+
 
 router.delete(
     "/:fileId",
