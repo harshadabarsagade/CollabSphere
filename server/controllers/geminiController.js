@@ -20,7 +20,7 @@ const generateGeminiResponse = async (prompt) => {
                     }
                 ],
                 generationConfig: {
-                    maxOutputTokens: 500
+                    maxOutputTokens: 2048
                 }
             })
         }
