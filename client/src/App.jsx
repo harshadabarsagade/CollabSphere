@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 import PublicProject from "./PublicProject";
+import ReactMarkdown from "react-markdown";
 
 import {
   getProjectFiles,
@@ -15,6 +16,7 @@ import {
   registerUser,
   getMyProjects,
   createProject,
+  addProjectMember,
   generateAIResponse,
   explainContent,
   shareProject,
@@ -44,6 +46,8 @@ function App() {
   const [projectId, setProjectId] = useState("");
   const [projectTitle, setProjectTitle] = useState("");
   const [projectDescription, setProjectDescription] = useState("");
+  const [memberEmail, setMemberEmail] = useState("");
+  const [memberLoading, setMemberLoading] = useState(false);
 
   const [files, setFiles] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -200,6 +204,38 @@ function App() {
     }
   }
 
+  async function handleAddMember(event) {
+    event.preventDefault();
+
+    if (!projectId) {
+      setMessage("Please select a project first.");
+      return;
+    }
+
+    if (!memberEmail.trim()) {
+      setMessage("Please enter the member's email.");
+      return;
+    }
+
+    try {
+      setMemberLoading(true);
+      setMessage("");
+
+      const data = await addProjectMember(
+        projectId,
+        memberEmail.trim(),
+        token
+      );
+
+      setMessage(data.message || "Collaborator added successfully!");
+      setMemberEmail("");
+    } catch (error) {
+      setMessage(error.message || "Could not add collaborator.");
+    } finally {
+      setMemberLoading(false);
+    }
+  }
+
 
   function handleProjectChange(newProjectId) {
     setProjectId(newProjectId);
@@ -332,6 +368,7 @@ function App() {
       );
 
       setAiResponse(result || "No explanation returned.");
+      console.log("Complete AI Response:", result);
     } catch (error) {
       setMessage(error.message || "Could not explain this code.");
     } finally {
@@ -650,6 +687,28 @@ function App() {
             </button>
           </div>
 
+
+
+
+          {/* Add Project Member */}
+          <form onSubmit={handleAddMember}>
+            <input
+              type="email"
+              placeholder="Collaborator's registered email"
+              value={memberEmail}
+              onChange={(event) => setMemberEmail(event.target.value)}
+              required
+            />
+
+            <button
+              type="submit"
+              disabled={memberLoading || !projectId}
+            >
+              {memberLoading ? "Adding..." : "Add Member"}
+            </button>
+          </form>
+
+
           {shareLink && (
             <div>
               <label htmlFor="public-share-link">Public share link</label>
@@ -848,16 +907,21 @@ function App() {
             />
 
             <button type="submit" disabled={loading}>
-              Generate AI Response
+              {loading ? "Generating..." : "Generate AI Response"}
             </button>
           </form>
 
+          {loading && <p>AI is thinking... Please wait.</p>}
           {aiResponse && (
             <div>
               <h3>AI Response</h3>
-              <p>{aiResponse}</p>
+              <ReactMarkdown>{aiResponse}</ReactMarkdown>
+              <button type="button" onClick={() => setAiResponse("")}>
+                Clear Response
+              </button>
             </div>
           )}
+
         </section>
       </main>
     </div>

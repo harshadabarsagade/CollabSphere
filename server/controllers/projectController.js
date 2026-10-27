@@ -160,6 +160,12 @@ export const addProjectMember = async (req, res) => {
             email: email.trim().toLowerCase()
         });
 
+
+        console.log("Logged-in user ID:", req.user.id);
+        console.log("Project owner ID:", project.owner.toString());
+        console.log("Member email:", member?.email);
+        console.log("Member ID:", member?._id.toString());
+
         if (!member) {
             return res.status(404).json({
                 message: "User with this email was not found"

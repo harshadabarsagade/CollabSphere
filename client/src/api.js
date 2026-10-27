@@ -50,6 +50,7 @@ export async function getMyProjects(token) {
   return data.projects || [];
 }
 
+
 export async function createProject(project, token) {
   const response = await fetch(`${API_URL}/api/projects`, {
     method: "POST",
@@ -61,6 +62,22 @@ export async function createProject(project, token) {
   });
 
   return handleResponse(response, "Could not create project");
+}
+
+export async function addProjectMember(projectId, email, token) {
+  const response = await fetch(
+    `${API_URL}/api/projects/${projectId}/members`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ email }),
+    }
+  );
+
+  return handleResponse(response, "Could not add project member");
 }
 
 export async function shareProject(projectId, token) {
