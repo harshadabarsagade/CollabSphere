@@ -86,6 +86,8 @@ function App() {
         throw new Error("Authentication response is incomplete.");
       }
 
+      console.log("Authentication response:", data);
+
       localStorage.setItem("collabsphere_token", authToken);
       localStorage.setItem(
         "collabsphere_user",
@@ -135,6 +137,8 @@ function App() {
         : data.projects || [];
 
       setProjects(projectList);
+      console.log("Loaded projects:", projectList);
+      console.log("Logged-in user:", JSON.parse(localStorage.getItem("collabsphere_user")));
 
       setProjectId((currentId) => {
         if (projectList.some((project) => project._id === currentId)) {
@@ -229,6 +233,9 @@ function App() {
 
       setMessage(data.message || "Collaborator added successfully!");
       setMemberEmail("");
+
+      await loadProjects(token);
+
     } catch (error) {
       setMessage(error.message || "Could not add collaborator.");
     } finally {
@@ -708,7 +715,32 @@ function App() {
             </button>
           </form>
 
+          {/* Project Members List */}
+          <div className="members-list">
+            <h3>Project Members</h3>
 
+            {(() => {
+              const selectedProject = projects.find(
+                (project) => project._id === projectId
+              );
+
+              const members = selectedProject?.members || [];
+              console.log("Project members:", members);
+
+              if (members.length === 0) {
+                return <p>No members added yet.</p>;
+              }
+
+              return members.map((member) => (
+                <div key={member._id || member} className="member-item">
+                  <p>{member.name || "Project Member"}</p>
+                  {member.email && <p>{member.email}</p>}
+                </div>
+              ));
+            })()}
+          </div>
+
+          {/* Public Share Link */}
           {shareLink && (
             <div>
               <label htmlFor="public-share-link">Public share link</label>

@@ -44,7 +44,9 @@ export const getMyProjects = async (req, res) => {
                 { owner: req.user.id },
                 { members: req.user.id }
             ]
-        }).sort({ updatedAt: -1 });
+        })
+            .populate("members", "name email")
+            .sort({ updatedAt: -1 });
 
         return res.status(200).json({
             message: "Projects fetched successfully",
