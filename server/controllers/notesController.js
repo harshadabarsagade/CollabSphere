@@ -1,5 +1,6 @@
 import Note from "../models/Note.js";
 import Project from "../models/Project.js";
+import Activity from "../models/Activity.js";
 
 // Check whether the user can access the project
 const canAccessProject = (project, userId) => {
@@ -53,6 +54,14 @@ export const createNote = async (req, res) => {
             content: content || "",
             project: projectId,
             owner: req.user.id
+        });
+
+
+        await Activity.create({
+            project: projectId,
+            user: req.user.id,
+            action: "note_created",
+            details: `Created note: ${title.trim()}`
         });
 
         return res.status(201).json({
@@ -147,6 +156,13 @@ export const updateNote = async (req, res) => {
 
         await note.save();
 
+        await Activity.create({
+            project: note.project,
+            user: req.user.id,
+            action: "note_updated",
+            details: `Updated note: ${note.title}`
+        });
+
         return res.status(200).json({
             message: "Note updated successfully",
             note
@@ -163,6 +179,7 @@ export const updateNote = async (req, res) => {
 // Delete a note
 export const deleteNote = async (req, res) => {
     try {
+        console.log("deleteNote controller called");
         const note = await Note.findById(req.params.id);
 
         if (!note) {
@@ -186,6 +203,16 @@ export const deleteNote = async (req, res) => {
         }
 
         await Note.findByIdAndDelete(note._id);
+
+
+        const activity = await Activity.create({
+            project: note.project,
+            user: req.user.id,
+            action: "note_deleted",
+            details: `Deleted note: ${note.title}`
+        });
+
+        console.log("Saved activity:", activity._id);
 
         return res.status(200).json({
             message: "Note deleted successfully"
