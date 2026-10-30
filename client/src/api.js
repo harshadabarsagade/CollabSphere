@@ -262,3 +262,27 @@ export async function generateProjectReadme(content, token) {
   const data = await handleResponse(response, "Could not generate README");
   return data.response;
 }
+
+
+// Activity Analytics
+export async function getProjectStats(projectId, token) {
+  const response = await fetch(
+    `${API_URL}/api/activities/${projectId}/stats`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+
+  return handleResponse(response, "Could not load project statistics");
+}
+
+export async function getProjectActivities(projectId, token) {
+  const response = await fetch(
+    `${API_URL}/api/activities/${projectId}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+
+  return handleResponse(response, "Could not load project activities");
+}

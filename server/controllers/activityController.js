@@ -99,7 +99,7 @@ export const getProjectStats = async (req, res) => {
     }
 };
 
-// Record an activity when a project member performs an action
+
 export const createActivity = async (req, res) => {
     try {
         const { projectId, action, details = "" } = req.body;

@@ -20,6 +20,8 @@ import {
   generateAIResponse,
   explainContent,
   shareProject,
+  getProjectStats,
+  getProjectActivities,
 } from "./api";
 
 function App() {
@@ -38,6 +40,7 @@ function App() {
   });
 
   const [isRegister, setIsRegister] = useState(false);
+  const [projectStats, setProjectStats] = useState(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -166,6 +169,13 @@ function App() {
   }, [token]);
 
 
+  useEffect(() => {
+  if (projectId && token) {
+    loadProjectStats(projectId);
+  }
+}, [projectId, token]);
+
+
   async function handleCreateProject(event) {
     event.preventDefault();
 
@@ -248,9 +258,27 @@ function App() {
     setProjectId(newProjectId);
     setFiles([]);
     setNotes([]);
+    setProjectStats(null);
+    loadProjectStats(newProjectId);
     setShareLink("");
     setMessage("");
   }
+
+
+  async function loadProjectStats(selectedProjectId) {
+    if (!selectedProjectId || !token) return;
+
+    try {
+      const stats = await getProjectStats(selectedProjectId, token);
+      setProjectStats(stats.stats);
+    } catch (error) {
+      console.error("Could not load project statistics:", error);
+      setProjectStats(null);
+    }
+  }
+
+
+
 
   async function handleShareProject() {
     if (!projectId) {
@@ -452,7 +480,10 @@ function App() {
 
 
   async function handleDeleteNote(noteId) {
+    console.log("Delete clicked, note ID:", noteId);
+    
     if (!window.confirm("Are you sure you want to delete this note?")) {
+      
       return;
     }
 
@@ -674,7 +705,35 @@ function App() {
                 </option>
               ))
             )}
+
+
           </select>
+          <h3>Project Statistics</h3>
+
+          {projectStats && (
+            <div className="stats-grid">
+              <div className="stat-card">
+                <h3>Total Notes</h3>
+                <p>{projectStats.notesCount}</p>
+              </div>
+
+              <div className="stat-card">
+                <h3>Total Files</h3>
+                <p>{projectStats.filesCount}</p>
+              </div>
+
+              <div className="stat-card">
+                <h3>Team Members</h3>
+                <p>{projectStats.membersCount}</p>
+              </div>
+
+              <div className="stat-card">
+                <h3>Total Activities</h3>
+                <p>{projectStats.activitiesCount}</p>
+              </div>
+            </div>
+          )}
+
 
           <div className="action-row">
             <button
@@ -861,6 +920,14 @@ function App() {
               required
             />
 
+
+            <div className="markdown-preview">
+              <h3>Live Preview</h3>
+              <ReactMarkdown>
+                {noteContent || "*Your preview will appear here...*"}
+              </ReactMarkdown>
+            </div>
+
             <button type="submit" disabled={loading || !projectId}>
               {editingNoteId ? "Update Note" : "Create Note"}
             </button>
@@ -883,7 +950,7 @@ function App() {
           {notes.map((note) => (
             <article key={note._id}>
               <h3>{note.title}</h3>
-              <p>{note.content}</p>
+              <ReactMarkdown>{note.content || ""}</ReactMarkdown>
 
               <div className="action-row">
                 <button
@@ -942,6 +1009,10 @@ function App() {
               {loading ? "Generating..." : "Generate AI Response"}
             </button>
           </form>
+
+
+
+
 
           {loading && <p>AI is thinking... Please wait.</p>}
           {aiResponse && (
